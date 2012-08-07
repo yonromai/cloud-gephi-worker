@@ -4,6 +4,7 @@ import com.amazonaws.services.sqs.model.Message;
 import com.google.common.io.ByteStreams;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
 import java.util.logging.Level;
@@ -39,17 +40,18 @@ public class AppTest extends TestCase {
     public void testApp() {
         try {
             Properties properties = new Properties();
-            properties.setProperty("input_bucket_name", "cloudgephitestinput");
-            properties.setProperty("output_bucket_name", "cloudgephitestoutput");
-            properties.setProperty("input_queue_url", "https://queue.amazonaws.com/992095333379/cloudgephijobstest");
-            properties.setProperty("output_queue_url", "https://queue.amazonaws.com/992095333379/cloudgephicallbackstest");
+            properties.setProperty("input_bucket_name", "dev-cloudgephi");
+            properties.setProperty("output_bucket_name", "dev-cloudgephi");
+            properties.setProperty("input_queue_url", "https://queue.amazonaws.com/801673701464/cloudgephijobstest");
+            properties.setProperty("output_queue_url", "https://queue.amazonaws.com/801673701464/cloudgephicallbackstest");
             Worker worker = new Worker(properties);
 
             AmazonClient awsClient = new AmazonClient(worker.getProperties());
 
             //Clean files
-            awsClient.cleanFile("foo/sample.gexf", awsClient.getInputBucketName());
-            awsClient.cleanFile("foo/result.txt", awsClient.getOutputBucketName());
+            awsClient.cleanFile("users/testUser/graphs/42/sample.gexf", awsClient.getInputBucketName());
+            awsClient.cleanFile("users/testUser/graphs/42/sample.png", awsClient.getOutputBucketName());
+            awsClient.cleanFile("users/testUser/graphs/42/sample.thumb.png", awsClient.getOutputBucketName());
 
             //Load sample GEXF
             InputStream gexfStrem = getClass().getResourceAsStream("/sample.gexf");
@@ -57,12 +59,14 @@ public class AppTest extends TestCase {
             gexfStrem.close();
 
             //Upload it to the jobs under the foo project
-            awsClient.upload(gexfData, awsClient.getInputBucketName(), "application/gexf+xml", "foo/sample.gexf", "sample.gexf");
+            awsClient.upload(gexfData, awsClient.getInputBucketName(), "application/gexf+xml", "users/testUser/graphs/42/sample.gexf", "sample.gexf");
             awsClient.finishUploads();
 
             //Send message on the inputqueue
-            JobMessage job = new JobMessage(JobMessage.MessageType.RENDER, "foo/sample.gexf", null);
-            String serializedMessage = worker.serializeJob(job);
+            HashMap<String,String> params = new HashMap<String,String>();
+            params.put("fileKey", "users/testUser/graphs/42/sample.gexf");
+            JobMessage job = new JobMessage(JobMessage.JobType.RENDER, params);
+            String serializedMessage = job.serialize();
             Logger.getLogger(AppTest.class.getName()).log(Level.INFO, "Sending message: {0}", serializedMessage);
             awsClient.sendMessages(serializedMessage, awsClient.getInputQueueUrl());
 
@@ -73,18 +77,19 @@ public class AppTest extends TestCase {
             worker.run();
 
             //Look for result file on S3
-            String resultStr = new String(awsClient.download("foo/result.txt", awsClient.getOutputBucketName()));
-            assertEquals("foo", resultStr);
-
-            //Wait a little bit so the message is in the output queue
-            Thread.sleep(2000);
+            byte[] png = awsClient.download("users/testUser/graphs/42/sample.png", awsClient.getOutputBucketName());
+            byte[] thumbPng = awsClient.download("users/testUser/graphs/42/sample.thumb.png", awsClient.getOutputBucketName());
+            assert(png.length > thumbPng.length);
 
             //Look if received message on output queue
             List<Message> msgs = awsClient.getMessages(awsClient.getOutputQueueUrl());
             awsClient.deleteMessages(msgs, awsClient.getOutputQueueUrl());
             assertEquals(1, msgs.size());
             Message msg = msgs.get(0);
-            assertEquals(serializedMessage, msg.getBody());
+            params = new HashMap<String,String>();
+            params.put("fileKey", "users/testUser/graphs/42/sample.png");
+            CallbackMessage expectedCallback = new CallbackMessage(CallbackMessage.CallbackType.RENDERED, params);
+            assertEquals(expectedCallback.serialize(), msg.getBody());
 
         } catch (InterruptedException ex) {
             Logger.getLogger(AppTest.class.getName()).log(Level.SEVERE, null, ex);
