@@ -104,9 +104,9 @@ public class Worker {
         try {
             //Unserialize job message
             JobMessage job = new JobMessage(message.getBody());
-            String fileKey = job.getParams().get("fileKey");
-            String graphDir = fileKey.substring(0, fileKey.lastIndexOf("/"));
-            String gaphName = fileKey.substring(fileKey.lastIndexOf("/") + 1, fileKey.lastIndexOf("."));
+            String graphName = job.getParams().get("graph_name");
+            String graphDir = String.format("users/%s/graphs/%s", job.getParams().get("user_id"), job.getParams().get("graph_id"));
+            String fileKey = String.format("%s/%s.%s", graphDir, graphName, job.getParams().get("graph_format"));
 
             //Init a project - and therefore a workspace
             ProjectController pc = Lookup.getDefault().lookup(ProjectController.class);
@@ -150,8 +150,8 @@ public class Worker {
               baos.toByteArray(), 
               awsClient.getOutputBucketName(), 
               "image/png", 
-              graphDir + "/" + gaphName + ".png",  
-              gaphName + ".png");
+              graphDir + "/" + graphName + ".png",  
+              graphName + ".png");
 
             // Export thumbnail png
             baos = new ByteArrayOutputStream();
@@ -163,14 +163,16 @@ public class Worker {
               baos.toByteArray(), 
               awsClient.getOutputBucketName(), 
               "image/png", 
-              graphDir + "/" + gaphName + ".thumb.png",  
-              gaphName + ".thumb.png");
+              graphDir + "/" + graphName + ".thumb.png",  
+              graphName + ".thumb.png");
             awsClient.finishUploads();
             
 
             //Send message to the ouptut queue
             HashMap<String,String> params = new HashMap<String,String>();
-            params.put("fileKey", graphDir + "/" + gaphName + ".png");
+            params.put("user_id", job.getParams().get("user_id"));
+            params.put("graph_id", job.getParams().get("graph_id"));
+            params.put("graph_name", job.getParams().get("graph_name"));
             CallbackMessage callback = new CallbackMessage(CallbackMessage.CallbackType.RENDERED, params);
             awsClient.sendMessages(callback.serialize(), awsClient.getOutputQueueUrl());
         } catch (IOException ex) {

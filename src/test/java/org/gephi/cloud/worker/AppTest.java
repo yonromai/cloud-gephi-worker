@@ -64,7 +64,10 @@ public class AppTest extends TestCase {
 
             //Send message on the inputqueue
             HashMap<String,String> params = new HashMap<String,String>();
-            params.put("fileKey", "users/testUser/graphs/42/sample.gexf");
+            params.put("user_id", "testUser");
+            params.put("graph_id", "42");
+            params.put("graph_name", "sample");
+            params.put("graph_format", "gexf");
             JobMessage job = new JobMessage(JobMessage.JobType.RENDER, params);
             String serializedMessage = job.serialize();
             Logger.getLogger(AppTest.class.getName()).log(Level.INFO, "Sending message: {0}", serializedMessage);
@@ -86,8 +89,10 @@ public class AppTest extends TestCase {
             awsClient.deleteMessages(msgs, awsClient.getOutputQueueUrl());
             assertEquals(1, msgs.size());
             Message msg = msgs.get(0);
-            params = new HashMap<String,String>();
-            params.put("fileKey", "users/testUser/graphs/42/sample.png");
+            params.clear();
+            params.put("user_id", "testUser");
+            params.put("graph_id", "42");
+            params.put("graph_name", "sample");
             CallbackMessage expectedCallback = new CallbackMessage(CallbackMessage.CallbackType.RENDERED, params);
             assertEquals(expectedCallback.serialize(), msg.getBody());
 
