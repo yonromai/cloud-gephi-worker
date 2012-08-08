@@ -15,6 +15,8 @@ import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -138,8 +140,14 @@ public class AmazonClient {
         objectMetadata.setContentType(contentType);
         objectMetadata.setContentDisposition(fileName);
 
-        Upload upload = transferManager.upload(bucket, key, bis, objectMetadata);
-        uploads.add(upload);
+        // TODO: Enable PUBLIC uploads using transferManger
+        // Upload upload = transferManager.upload(bucket, key, bis, objectMetadata);
+        // uploads.add(upload);
+
+        s3Client.putObject(
+         new PutObjectRequest(bucket, key, bis, objectMetadata)
+            .withCannedAcl(CannedAccessControlList.PublicRead));
+
         logger.log(Level.INFO, "Start upload of {0} bytes to key={1} on bucket={2}", new Object[]{bytes.length, key, bucket});
     }
 
